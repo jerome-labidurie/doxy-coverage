@@ -55,42 +55,46 @@ def FATAL(*objs):
 	sys.exit((1,0)[ns.noerror])
 
 def parse_file(fullpath):
-	tree = ET.parse(fullpath)
-
+	
 	sourcefile  = None
 	definitions = {}
+	
+	try:
+		tree = ET.parse(fullpath)
+	except ET.ParseError as e:
+	  print ("failed to parse ", fullpath, e)
+	else:
+		for definition in tree.findall("./compounddef//memberdef"):
+			# Should it be documented
+			if (definition.get('kind') == 'function' and
+				definition.get('static') == 'yes'):
+				continue
 
-	for definition in tree.findall("./compounddef//memberdef"):
-		# Should it be documented
-		if (definition.get('kind') == 'function' and
-			definition.get('static') == 'yes'):
-			continue
+			# Is the definition documented?
+			documented = False
+			for k in ('briefdescription', 'detaileddescription', 'inbodydescription'):
+				if definition.findall("./%s/"%(k)):
+					documented = True
+					break
 
-		# Is the definition documented?
-		documented = False
-		for k in ('briefdescription', 'detaileddescription', 'inbodydescription'):
-			if definition.findall("./%s/"%(k)):
-				documented = True
-				break
+			# Name
+			d_def = definition.find('./definition')
+			d_nam = definition.find('./name')
 
-		# Name
-		d_def = definition.find('./definition')
-		d_nam = definition.find('./name')
+			if not sourcefile:
+				l = definition.find('./location')
+				if l is not None:
+					sourcefile = l.get('file')
 
-		if not sourcefile:
-			l = definition.find('./location')
-			if l is not None:
-				sourcefile = l.get('file')
+			if d_def is not None:
+				name = d_def.text
+			elif d_nam is not None:
+				name = d_nam.text
+			else:
+				name = definition.get('id')
 
-		if d_def is not None:
-			name = d_def.text
-		elif d_nam is not None:
-			name = d_nam.text
-		else:
-			name = definition.get('id')
-
-		# Aggregate
-		definitions[name] = documented
+			# Aggregate
+			definitions[name] = documented
 
 	if not sourcefile:
 		sourcefile = fullpath
